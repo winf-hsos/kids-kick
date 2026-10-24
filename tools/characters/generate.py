@@ -32,6 +32,8 @@ from retarget import retarget_action  # noqa: E402
 ASSETS = os.environ.get("MH_ASSETS", os.path.expanduser("~/.kids-kick-tools/mhassets/data"))
 ANIM_SOURCE = os.path.join(HERE, "source", "Xbot.glb")
 ANIMATIONS = ["idle", "walk", "run"]
+# Die Mixamo-Stehanimation ist recht breitbeinig und steif; Arme und Beine etwas anlegen.
+ANIMATION_ADDUCT = {"idle": {"Arm": 9, "UpLeg": 3}, "walk": {"Arm": 4}, "run": {}}
 
 # Haarfarben (sRGB 0..1)
 HAIR = {
@@ -168,7 +170,7 @@ def classify_vertices(body, rig):
     hips_z = bones["mixamorig:Hips"].head_local.z
     height = max(vt.co.z for vt in body.data.vertices)
     shirt_bottom = hips_z - 0.025 * height / 1.4
-    shorts_top = hips_z + 0.075 * height / 1.4
+    shorts_top = shirt_bottom + 0.03
 
     def param(vco, bone):
         h, t = bone.head_local, bone.tail_local
@@ -202,17 +204,21 @@ def classify_vertices(body, rig):
             r = "foot"
         else:  # Rumpf
             r = "shirt" if z >= shirt_bottom else "shorts"
-            if r == "shirt" and z < shorts_top:
+            # Der Hosenbund reicht nur knapp unter das Trikot (sonst sticht er durch)
+            if r == "shirt" and z < shirt_bottom + 0.03:
                 r = "shirt+shorts"
         region[vt.index] = r
     return region, tparam, dict(shirt_bottom=shirt_bottom, shorts_top=shorts_top, hips_z=hips_z)
 
 
 def make_shell(body, verts_in, name, offset_fn, hem_fn=None, smooth=0):
-    """Kopiert die Flächen, deren Vertices alle in verts_in liegen, als eigenes Objekt
-    und schiebt sie entlang der Normalen nach außen. Gewichte bleiben erhalten.
-    hem_fn(vert) liefert für Randvertices eine begradigte Position (Saum), smooth glättet
-    Körperdetails weg, damit der Stoff nicht wie aufgemalt wirkt."""
+    """Kopiert die Flächen, deren Vertices alle in verts_in liegen, als eigenes Objekt.
+    Gewichte bleiben erhalten. hem_fn(vert) liefert für Randvertices eine begradigte
+    Position (Saum).
+
+    Damit der Stoff nicht wie aufgemalt wirkt, wird die Hülle stark geglättet (Mulden
+    werden überspannt, Wölbungen wie die Brustmuskeln verschwinden) und danach überall
+    mindestens offset_fn(vert) vor die Haut geschoben."""
     shell = body.copy()
     shell.data = body.data.copy()
     shell.name = shell.data.name = name
@@ -238,14 +244,17 @@ def make_shell(body, verts_in, name, offset_fn, hem_fn=None, smooth=0):
                 co = hem_fn(vt, deform)
                 if co is not None:
                     vt.co = co
+    bm.normal_update()
+    skin = [(vt.co.copy(), vt.normal.copy()) for vt in bm.verts]
+    min_off = [offset_fn(vt) for vt in bm.verts]
     if smooth:
         inner = [vt for vt in bm.verts if not vt.is_boundary]
         for _ in range(smooth):
             bmesh.ops.smooth_vert(bm, verts=inner, factor=0.5, use_axis_x=True, use_axis_y=True, use_axis_z=True)
-    bm.normal_update()
-    offsets = [offset_fn(vt) for vt in bm.verts]
-    for vt, d in zip(bm.verts, offsets):
-        vt.co += vt.normal * d
+    for vt, (co0, n0), d in zip(bm.verts, skin, min_off):
+        above = (vt.co - co0).dot(n0)
+        if above < d:
+            vt.co += n0 * (d - above)
     bm.to_mesh(shell.data)
     bm.free()
     shell.data.materials.clear()
@@ -341,12 +350,21 @@ def build_clothes(body, rig):
             return None
         return limb_hem("UpLeg", 0.5)(vt, deform)
 
-    shirt_obj = make_shell(body, shirt, "Jersey", lambda vt: 0.014, shirt_hem, smooth=4)
-    shorts_obj = make_shell(
-        body, shorts, "Shorts",
-        lambda vt: 0.011 + 0.03 * max(0.0, tparam.get(vt.index, 0.0)),
-        shorts_hem, smooth=8,
-    )
+    chest_z = bones["mixamorig:Spine2"].head_local.z
+    bottom_z = levels["shirt_bottom"]
+
+    def shirt_offset(vt):
+        # Ärmel etwas weiter, der Rumpf fällt von der Brust an locker nach unten
+        if vt.index in tparam:
+            return 0.011
+        t = min(1.0, max(0.0, (chest_z - vt.co.z) / (chest_z - bottom_z)))
+        return 0.007 + 0.024 * t
+
+    def shorts_offset(vt):
+        return 0.010 + 0.035 * max(0.0, tparam.get(vt.index, 0.0))
+
+    shirt_obj = make_shell(body, shirt, "Jersey", shirt_offset, shirt_hem, smooth=25)
+    shorts_obj = make_shell(body, shorts, "Shorts", shorts_offset, shorts_hem, smooth=12)
     socks_obj = make_shell(body, socks, "Socks", lambda vt: 0.0075, limb_hem("Leg", 0.16), smooth=2)
 
     neck_z = rig.data.bones["mixamorig:Neck"].head_local.z
@@ -527,7 +545,7 @@ def build_variant(v, out_dir, tmpdir):
         a.name = "src_" + a.name
     actions = {}
     for name in ANIMATIONS:
-        actions[name] = retarget_action(src, src_actions[name], rig, name)
+        actions[name] = retarget_action(src, src_actions[name], rig, name, ANIMATION_ADDUCT.get(name))
     for o in imported:
         bpy.data.objects.remove(o, do_unlink=True)
     for a in list(bpy.data.actions):

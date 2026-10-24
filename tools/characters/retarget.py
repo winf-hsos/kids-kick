@@ -9,7 +9,9 @@ Körper drehen. Die Hüftbewegung wird mit dem Verhältnis der Hüfthöhen skali
 """
 
 import bpy
-from mathutils import Matrix, Quaternion
+import math
+
+from mathutils import Matrix, Quaternion, Vector
 
 TARGET_FPS = 30
 
@@ -20,6 +22,11 @@ _MAIN_CHILD = {
     "LeftHand": "LeftHandMiddle1",
     "RightHand": "RightHandMiddle1",
 }
+
+
+# Schlüsselbeine behalten ihre natürliche Neigung. Würden sie auf die waagerechten
+# Mixamo-Schlüsselbeine ausgerichtet, zögen die Kinder die Schultern hoch.
+_KEEP_REST_DIRECTION = {"LeftShoulder", "RightShoulder"}
 
 
 def _short(name):
@@ -64,8 +71,24 @@ def _hierarchy(bones):
     return order
 
 
-def retarget_action(src_arm, src_action, dst_arm, name):
-    """Erzeugt auf dst_arm eine neue Action `name` aus src_action von src_arm."""
+def _offset_rotations(dst_bones, adduct):
+    """Starre Drehung ganzer Gliedmaßen zum Körper hin (Grad, positiv = anlegen).
+    Gilt für den genannten Knochen und alle Kinder. Achse: vorne/hinten (Blender-Y)."""
+    out = {}
+    for b in dst_bones:
+        q = out[b.parent.name] if b.parent else Quaternion()
+        short = _short(b.name)
+        base = short.replace("Left", "").replace("Right", "")
+        if base in adduct:
+            sign = 1.0 if short.startswith("Left") else -1.0
+            q = Quaternion(Vector((0, 1, 0)), math.radians(adduct[base]) * sign) @ q
+        out[b.name] = q
+    return out
+
+
+def retarget_action(src_arm, src_action, dst_arm, name, adduct=None):
+    """Erzeugt auf dst_arm eine neue Action `name` aus src_action von src_arm.
+    adduct: z. B. {"Arm": 8, "UpLeg": 3} legt Arme/Beine etwas näher an den Körper."""
     scene = bpy.context.scene
     src_arm.animation_data_create()
     src_arm.animation_data.action = src_action
@@ -91,12 +114,14 @@ def retarget_action(src_arm, src_action, dst_arm, name):
     for b in dst_bones:
         sb = src_bones.get(b.name)
         q = Quaternion()
-        if sb is not None:
+        if sb is not None and _short(b.name) not in _KEEP_REST_DIRECTION:
             dd = _rest_dir_world(dst_arm, b)
             sd = _rest_dir_world(src_arm, sb)
             if dd is not None and sd is not None:
                 q = dd.rotation_difference(sd)
         correction[b.name] = q
+
+    offsets = _offset_rotations(dst_bones, adduct or {})
 
     hips = dst_bones[0]
     src_hips = src_bones[hips.name]
@@ -128,6 +153,7 @@ def retarget_action(src_arm, src_action, dst_arm, name):
                 w = delta @ correction[b.name] @ t_rest_w
             else:
                 w = correction[b.name] @ t_rest_w
+            w = offsets[b.name] @ w
             rot_arm = (dst_mw_rot_inv @ w).to_matrix().to_4x4()
 
             if b.parent is None:

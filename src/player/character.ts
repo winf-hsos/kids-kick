@@ -140,11 +140,10 @@ function createJerseyTexture(kit: Kit, number: number, name: string): THREE.Canv
   text(name.toUpperCase(), W * 0.25, H * 0.17, 58, kit.number, kit.accent);
   text(String(number), W * 0.25, H * 0.5, 210, kit.number, kit.accent);
 
-  // Brust: kleine Nummer rechts, Vereinswappen links (vom Betrachter aus gesehen umgekehrt)
-  text(String(number), W * 0.69, H * 0.27, 64, kit.number, kit.accent);
+  // Brust: Vereinswappen auf der linken Brustseite (vom Betrachter aus rechts)
   ctx.save();
   ctx.translate(W * 0.81, H * 0.27);
-  ctx.scale(stretch, 1);
+  ctx.scale(stretch * 0.8, 0.8);
   ctx.beginPath();
   ctx.moveTo(-24, -28);
   ctx.lineTo(24, -28);
@@ -154,7 +153,7 @@ function createJerseyTexture(kit: Kit, number: number, name: string): THREE.Canv
   ctx.closePath();
   ctx.fillStyle = kit.accent;
   ctx.fill();
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 5;
   ctx.strokeStyle = kit.shirt;
   ctx.stroke();
   ctx.restore();

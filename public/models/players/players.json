@@ -1,0 +1,144 @@
+{
+  "players": [
+    {
+      "id": "kid01",
+      "label": "Ben",
+      "gender": "m",
+      "heightM": 1.406,
+      "hair": "short02",
+      "hairColor": "brown",
+      "skin": "young_caucasian_male",
+      "naturalSpeed": {
+        "walk": 1.321,
+        "run": 2.808
+      },
+      "file": "kid01.glb"
+    },
+    {
+      "id": "kid02",
+      "label": "Malik",
+      "gender": "m",
+      "heightM": 1.427,
+      "hair": "short04",
+      "hairColor": "black",
+      "skin": "young_african_male",
+      "naturalSpeed": {
+        "walk": 1.338,
+        "run": 2.877
+      },
+      "file": "kid02.glb"
+    },
+    {
+      "id": "kid03",
+      "label": "Lena",
+      "gender": "f",
+      "heightM": 1.376,
+      "hair": "ponytail01",
+      "hairColor": "blond",
+      "skin": "young_caucasian_female",
+      "naturalSpeed": {
+        "walk": 1.269,
+        "run": 2.758
+      },
+      "file": "kid03.glb"
+    },
+    {
+      "id": "kid04",
+      "label": "Kenji",
+      "gender": "m",
+      "heightM": 1.312,
+      "hair": "short01",
+      "hairColor": "black",
+      "skin": "young_asian_male",
+      "naturalSpeed": {
+        "walk": 1.23,
+        "run": 2.607
+      },
+      "file": "kid04.glb"
+    },
+    {
+      "id": "kid05",
+      "label": "Paul",
+      "gender": "m",
+      "heightM": 1.295,
+      "hair": "short03",
+      "hairColor": "blond",
+      "skin": "young_caucasian_male2",
+      "naturalSpeed": {
+        "walk": 1.204,
+        "run": 2.569
+      },
+      "file": "kid05.glb"
+    },
+    {
+      "id": "kid06",
+      "label": "Amara",
+      "gender": "f",
+      "heightM": 1.406,
+      "hair": "afro01",
+      "hairColor": "black",
+      "skin": "young_african_female",
+      "naturalSpeed": {
+        "walk": 1.302,
+        "run": 2.77
+      },
+      "file": "kid06.glb"
+    },
+    {
+      "id": "kid07",
+      "label": "Finn",
+      "gender": "m",
+      "heightM": 1.464,
+      "hair": "short01",
+      "hairColor": "red",
+      "skin": "young_caucasian_male",
+      "naturalSpeed": {
+        "walk": 1.383,
+        "run": 2.958
+      },
+      "file": "kid07.glb"
+    },
+    {
+      "id": "kid08",
+      "label": "Mei",
+      "gender": "f",
+      "heightM": 1.326,
+      "hair": "bob01",
+      "hairColor": "black",
+      "skin": "young_asian_female",
+      "naturalSpeed": {
+        "walk": 1.231,
+        "run": 3.003
+      },
+      "file": "kid08.glb"
+    },
+    {
+      "id": "kid09",
+      "label": "Jonas",
+      "gender": "m",
+      "heightM": 1.371,
+      "hair": "short02",
+      "hairColor": "darkblond",
+      "skin": "young_caucasian_male2",
+      "naturalSpeed": {
+        "walk": 1.284,
+        "run": 2.748
+      },
+      "file": "kid09.glb"
+    },
+    {
+      "id": "kid10",
+      "label": "Emre",
+      "gender": "m",
+      "heightM": 1.388,
+      "hair": "short04",
+      "hairColor": "darkbrown",
+      "skin": "young_caucasian_male",
+      "naturalSpeed": {
+        "walk": 1.303,
+        "run": 2.778
+      },
+      "file": "kid10.glb"
+    }
+  ]
+}

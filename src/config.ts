@@ -27,8 +27,7 @@ export const GOAL = {
 } as const;
 
 export const PLAYER = {
-  /** Körpergröße eines E-Jugend-Spielers (ca. 9–10 Jahre) */
-  height: 1.38,
+  /** Laufen und Sprinten in m/s (Kinder mit 9–11 Jahren) */
   jogSpeed: 3.6,
-  sprintSpeed: 6.2,
+  sprintSpeed: 6.0,
 } as const;

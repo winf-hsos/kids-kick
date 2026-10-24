@@ -11,7 +11,7 @@ export class BroadcastCamera {
   readonly camera: THREE.PerspectiveCamera;
   private mode: Mode = 'tv';
   /** Abstand der Kamera hinter der Seitenlinie (per Mausrad änderbar) */
-  private distance = 12;
+  private distance = 10;
   private readonly focus = new THREE.Vector3();
   private readonly lookAt = new THREE.Vector3();
   private readonly desiredPos = new THREE.Vector3();

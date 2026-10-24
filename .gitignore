@@ -4,3 +4,5 @@ build/
 .DS_Store
 .env
 *.log
+tools/characters/out/
+__pycache__/

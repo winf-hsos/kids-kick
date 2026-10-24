@@ -12,7 +12,9 @@ Ein web-basiertes Fußballspiel im FIFA-Style (à la Nintendo / PlayStation), in
 
 - 3D-Spielfeld mit Rasen (Mähstreifen), Linien, Strafräumen, Jugendtoren mit Netz
 - Umgebung: Himmel, Sonnenlicht mit Schatten, Banden, Ballfangzäune, Auswechselbänke, Bäume
-- Ein Spieler, steuerbar per Tastatur oder Gamepad, mit Steh-/Geh-/Lauf-Animationen und Körperneigung
+- Zehn realistische Kinderfiguren (9–11 Jahre, 1,30–1,46 m) mit Haaren, Trikot, Hose, Stutzen und Schuhen
+- Zwei Teams im 4+1 (FC Rot, SV Blau) mit Trikotfarben, Rückennummer und Namen, eigene Torwart-Trikots
+- Ein Spieler (gelber Ring) steuerbar per Tastatur oder Gamepad, mit Steh-/Geh-/Lauf-Animationen und Körperneigung
 - TV-Kamera an der Seitenlinie, die dem Spieler folgt, plus Totale
 
 ## Testen
@@ -53,13 +55,17 @@ src/
   world/pitch.ts            Rasen und Linien
   world/goal.ts             Jugendtore mit Netz
   world/environment.ts      Himmel, Licht, Banden, Umgebung
-  player/player.ts          Spielfigur, Bewegung, Animationen
+  teams.ts                  Teams, Trikots, Aufstellung im 4+1
+  player/character.ts       Spielerfiguren laden und einkleiden
+  player/player.ts          Bewegung, Animationen
   camera/broadcastCamera.ts TV-Kamera
   input/input.ts            Tastatur und Gamepad
-public/models/              3D-Modelle
+public/models/players/      Spielerfiguren (erzeugt)
+tools/characters/           Generator für die Spielerfiguren (Blender + MakeHuman)
+viewer.html                 Figuren-Viewer (nur im Dev-Server)
 ```
 
 ## Hinweise
 
 - Strafraumgröße (8 × 14 m) und Mittelkreis (r = 3 m) sind Annahmen und in `src/config.ts` anpassbar.
-- Die Spielfigur ist ein Platzhalter („X Bot“ von Mixamo, aus den three.js-Beispielen), auf Kindergröße (1,38 m) skaliert. Eigene Kindermodelle folgen.
+- Die Spielerfiguren werden mit `tools/characters` erzeugt, siehe [tools/characters/README.md](tools/characters/README.md).

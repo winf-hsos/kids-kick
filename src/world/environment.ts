@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Sky } from 'three/addons/objects/Sky.js';
+import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { PITCH } from '../config';
 import { mulberry32 } from './pitch';
 
@@ -156,11 +157,17 @@ function createBoards(): THREE.Group {
     return new THREE.MeshStandardMaterial({ map: tex, roughness: 0.5 });
   });
   const backMat = new THREE.MeshStandardMaterial({ color: 0x30343a, roughness: 0.7 });
-  const geom = new THREE.BoxGeometry(panelW, panelH, thick);
+  // Korpus als Box, Werbefläche als Ebene knapp davor. Alles wird pro Material
+  // zusammengefasst, damit die Banden nur wenige Draw Calls kosten.
+  const boxGeo = new THREE.BoxGeometry(panelW, panelH, thick);
+  const faceGeo = new THREE.PlaneGeometry(panelW - 0.04, panelH - 0.04).translate(0, 0, thick / 2 + 0.002);
+  const boxes: THREE.BufferGeometry[] = [];
+  const faces: THREE.BufferGeometry[][] = materials.map(() => []);
 
   const bx = PITCH.length / 2 + PITCH.runoff;
   const bz = PITCH.width / 2 + PITCH.runoff;
   let k = 0;
+  const tmp = new THREE.Object3D();
 
   // Eine Bandenreihe entlang einer Strecke; die bedruckte Seite zeigt zum Feld.
   const row = (from: THREE.Vector3, to: THREE.Vector3, facing: number) => {
@@ -168,16 +175,13 @@ function createBoards(): THREE.Group {
     const n = Math.floor(len / panelW);
     const dir = new THREE.Vector3().subVectors(to, from).normalize();
     for (let i = 0; i < n; i++) {
-      const mat = materials[k++ % materials.length];
-      // BoxGeometry-Seiten: +x, -x, +y, -y, +z (Vorderseite), -z
-      const mesh = new THREE.Mesh(geom, [backMat, backMat, backMat, backMat, mat, backMat]);
-      mesh.position.copy(from).addScaledVector(dir, (i + 0.5) * (len / n));
-      mesh.position.y = panelH / 2 + 0.03;
-      mesh.rotation.y = facing;
-      mesh.rotateX(-0.12); // leicht nach hinten geneigt
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      group.add(mesh);
+      tmp.position.copy(from).addScaledVector(dir, (i + 0.5) * (len / n));
+      tmp.position.y = panelH / 2 + 0.03;
+      tmp.rotation.set(0, facing, 0);
+      tmp.rotateX(-0.12); // leicht nach hinten geneigt
+      tmp.updateMatrix();
+      boxes.push(boxGeo.clone().applyMatrix4(tmp.matrix));
+      faces[k++ % materials.length].push(faceGeo.clone().applyMatrix4(tmp.matrix));
     }
   };
 
@@ -185,6 +189,16 @@ function createBoards(): THREE.Group {
   // Auf der Kameraseite keine Bande, damit der Blick aufs Feld frei bleibt (wie im TV).
   row(new THREE.Vector3(-bx, 0, -bz), new THREE.Vector3(-bx, 0, bz), Math.PI / 2);
   row(new THREE.Vector3(bx, 0, -bz), new THREE.Vector3(bx, 0, bz), -Math.PI / 2);
+
+  const body = new THREE.Mesh(mergeGeometries(boxes), backMat);
+  body.castShadow = body.receiveShadow = true;
+  group.add(body);
+  faces.forEach((list, i) => {
+    if (!list.length) return;
+    const mesh = new THREE.Mesh(mergeGeometries(list), materials[i]);
+    mesh.receiveShadow = true;
+    group.add(mesh);
+  });
   return group;
 }
 
@@ -195,7 +209,7 @@ function createTrees(): THREE.Group {
   const blobsPerTree = 6;
 
   const trunkGeo = new THREE.CylinderGeometry(0.15, 0.3, 1, 8).translate(0, 0.5, 0);
-  const crownGeo = new THREE.IcosahedronGeometry(1, 3);
+  const crownGeo = new THREE.IcosahedronGeometry(1, 1);
   const trunks = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: 0x5a4a3c, roughness: 1 }), count);
   const crowns = new THREE.InstancedMesh(
     crownGeo,

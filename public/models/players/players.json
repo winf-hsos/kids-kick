@@ -32,13 +32,13 @@
       "id": "kid03",
       "label": "Lena",
       "gender": "f",
-      "heightM": 1.376,
+      "heightM": 1.378,
       "hair": "ponytail01",
       "hairColor": "blond",
       "skin": "young_caucasian_female",
       "naturalSpeed": {
-        "walk": 1.269,
-        "run": 2.758
+        "walk": 1.284,
+        "run": 2.727
       },
       "file": "kid03.glb"
     },
@@ -74,13 +74,13 @@
       "id": "kid06",
       "label": "Amara",
       "gender": "f",
-      "heightM": 1.406,
+      "heightM": 1.415,
       "hair": "afro01",
       "hairColor": "black",
       "skin": "young_african_female",
       "naturalSpeed": {
-        "walk": 1.302,
-        "run": 2.77
+        "walk": 1.319,
+        "run": 2.842
       },
       "file": "kid06.glb"
     },
@@ -102,13 +102,13 @@
       "id": "kid08",
       "label": "Mei",
       "gender": "f",
-      "heightM": 1.326,
+      "heightM": 1.323,
       "hair": "bob01",
       "hairColor": "black",
       "skin": "young_asian_female",
       "naturalSpeed": {
-        "walk": 1.231,
-        "run": 3.003
+        "walk": 1.236,
+        "run": 2.645
       },
       "file": "kid08.glb"
     },

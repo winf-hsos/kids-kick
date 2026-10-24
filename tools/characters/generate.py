@@ -112,7 +112,9 @@ def create_body(v):
         macro = TargetService.get_default_macro_info_dict()
         # MakeHuman: Alter 0 = 1 Jahr, 0.1875 = 11 Jahre (linear dazwischen)
         macro["age"] = (v["years"] - 1) / 10 * 0.1875
-        macro["gender"] = 1.0 if v["gender"] == "m" else 0.0
+        # Vor der Pubertät unterscheiden sich Jungen und Mädchen kaum im Körperbau.
+        # Mädchen liegen daher nahe am Jungen-Körper; Gesicht und Haare machen den Unterschied.
+        macro["gender"] = 1.0 if v["gender"] == "m" else 0.6
         macro["weight"] = v["weight"]
         macro["muscle"] = 0.5
         macro["height"] = height_param

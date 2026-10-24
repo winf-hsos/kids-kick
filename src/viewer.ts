@@ -42,6 +42,9 @@ const width = (ids.length - 1) * spacing;
 camera.position.set(0, 1.0, 2.8 + width * 1.0);
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.target.set(0, 0.75, 0);
+// Nahaufnahme: &cam=x,y,z&target=x,y,z
+if (params.has('cam')) camera.position.fromArray(params.get('cam')!.split(',').map(Number));
+if (params.has('target')) controls.target.fromArray(params.get('target')!.split(',').map(Number));
 controls.update();
 
 const library = await CharacterLibrary.load();

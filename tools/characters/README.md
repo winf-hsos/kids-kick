@@ -7,14 +7,17 @@ neue Spielertypen, Animationen oder Änderungen an der Kleidung jederzeit neu ba
 
 1. **Körper** – [MPFB](https://extensions.blender.org/add-ons/mpfb/) (MakeHuman für Blender)
    erzeugt Kinder mit echten Proportionen (Alter 9–11, Größe 1,30–1,46 m, Geschlecht, Statur, Herkunft).
+   Brust und Brustmuskeln sind flach gestellt, die Schultern etwas schmaler (`BODY_TARGETS`).
 2. **Skelett** – MPFB-Skelett „mixamo“, kompatibel zu Mixamo-Animationen.
 3. **Haare, Augen, Augenbrauen, Schuhe** – aus den MakeHuman-System-Assets (CC0).
    Haarfarben werden beim Erzeugen eingefärbt.
 4. **Trikot, Hose, Stutzen** – werden als Hüllen direkt aus dem Körper abgeleitet
    (gleiche Gewichte wie die Haut, daher keine Verformungsprobleme). Die Trikot-UVs sind
    eine Zylinderprojektion, damit das Spiel Nummer und Namen aufs Trikot malen kann.
-5. **Animationen** – Stehen, Gehen und Laufen werden vom Mixamo-Modell `source/Xbot.glb`
-   auf das Kinderskelett übertragen (`retarget.py`). Dabei wird auch die Geschwindigkeit
+5. **Animationen** – Gehen und Laufen werden vom Mixamo-Modell `source/Xbot.glb`
+   auf das Kinderskelett übertragen (`retarget.py`). Die Stehhaltung wird selbst erzeugt
+   (`poses.py`): Knie leicht gebeugt, Oberkörper leicht vorn, lockere Arme, Atmen und
+   Gewichtsverlagerung, je Spielertyp etwas anders. Die Füße bleiben per Bein-IK am Boden. Dabei wird auch die Geschwindigkeit
    gemessen, bei der die Füße nicht rutschen (`naturalSpeed` in `players.json`).
 6. **Export und Kompression** – GLB aus Blender, danach Meshopt + WebP mit glTF-Transform.
 

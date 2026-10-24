@@ -27,13 +27,21 @@ from PIL import Image, ImageOps
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
+from poses import make_idle  # noqa: E402
 from retarget import retarget_action  # noqa: E402
 
 ASSETS = os.environ.get("MH_ASSETS", os.path.expanduser("~/.kids-kick-tools/mhassets/data"))
 ANIM_SOURCE = os.path.join(HERE, "source", "Xbot.glb")
-ANIMATIONS = ["idle", "walk", "run"]
-# Die Mixamo-Stehanimation ist recht breitbeinig und steif; Arme und Beine etwas anlegen.
-ANIMATION_ADDUCT = {"idle": {"Arm": 9, "UpLeg": 3}, "walk": {"Arm": 4}, "run": {}}
+# Von Mixamo übertragen; die Stehanimation wird selbst erzeugt (poses.py)
+ANIMATIONS = ["walk", "run"]
+ANIMATION_ADDUCT = {"walk": {"Arm": 4}, "run": {}}
+
+# Kinderkörper: keine Brust, keine ausgeprägten Brustmuskeln, schmalere Schultern
+BODY_TARGETS = {
+    "torso/torso-muscle-pectoral-decr": 1.0,
+    "torso/torso-vshape-decr": 0.6,
+    "torso/measure-shoulder-dist-decr": 0.3,
+}
 
 # Haarfarben (sRGB 0..1)
 HAIR = {
@@ -109,7 +117,12 @@ def create_body(v):
         macro["muscle"] = 0.5
         macro["height"] = height_param
         macro["race"] = race
-        return HumanService.create_human(macro_detail_dict=macro, scale=0.1)
+        macro["cupsize"] = 0.0
+        human = HumanService.create_human(macro_detail_dict=macro, scale=0.1)
+        tdir = os.path.join(os.path.dirname(sys.modules[TargetService.__module__].__file__), "..", "data", "targets")
+        for target, weight in BODY_TARGETS.items():
+            TargetService.load_target(human, os.path.join(tdir, target + ".target.gz"), weight=weight)
+        return human
 
     lo, hi = 0.0, 1.0
     body = None
@@ -255,6 +268,13 @@ def make_shell(body, verts_in, name, offset_fn, hem_fn=None, smooth=0):
         above = (vt.co - co0).dot(n0)
         if above < d:
             vt.co += n0 * (d - above)
+    # Saum nach dem Abheben noch einmal begradigen (die Normalen zeigen am Rand schräg)
+    if hem_fn:
+        for vt in bm.verts:
+            if vt.is_boundary:
+                co = hem_fn(vt, deform)
+                if co is not None:
+                    vt.co = co
     bm.to_mesh(shell.data)
     bm.free()
     shell.data.materials.clear()
@@ -339,7 +359,8 @@ def build_clothes(body, rig):
         b = dominant(vt, deform)
         if b and side_free(b) == "Arm":
             return limb_hem("Arm", 0.48)(vt, deform)
-        if vt.co.z < levels["shirt_bottom"] + 0.04:
+        # alle unteren Randpunkte des Rumpfs gehören zum Saum
+        if vt.co.z < bones["mixamorig:Spine1"].head_local.z:
             co = vt.co.copy()
             co.z = levels["shirt_bottom"]
             return co
@@ -544,6 +565,7 @@ def build_variant(v, out_dir, tmpdir):
     for a in src_actions.values():
         a.name = "src_" + a.name
     actions = {}
+    actions["idle"] = make_idle(rig, seed=v["id"])
     for name in ANIMATIONS:
         actions[name] = retarget_action(src, src_actions[name], rig, name, ANIMATION_ADDUCT.get(name))
     for o in imported:

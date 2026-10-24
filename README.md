@@ -15,6 +15,10 @@ Ein web-basiertes Fußballspiel im FIFA-Style (à la Nintendo / PlayStation), in
 - Ein Spieler, steuerbar per Tastatur oder Gamepad, mit Steh-/Geh-/Lauf-Animationen und Körperneigung
 - TV-Kamera an der Seitenlinie, die dem Spieler folgt, plus Totale
 
+## Testen
+
+Die aktuelle Version von `main` wird automatisch veröffentlicht: **https://winf-hsos.github.io/kids-kick/**
+
 ## Steuerung
 
 | Aktion | Tastatur | Controller |

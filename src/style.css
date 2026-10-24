@@ -64,3 +64,122 @@ body {
   opacity: 0;
   pointer-events: none;
 }
+
+/* --- Anzeigetafel ------------------------------------------------------- */
+#hud .scoreboard {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 14px;
+  background: rgba(10, 16, 24, 0.78);
+  border-radius: 6px;
+  font-weight: 700;
+  font-size: 15px;
+  white-space: nowrap;
+}
+
+#hud .scoreboard .team {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+#hud .scoreboard .chip {
+  width: 12px;
+  height: 12px;
+  border-radius: 2px;
+  border: 2px solid;
+}
+
+#hud .scoreboard .score {
+  font-size: 20px;
+  font-variant-numeric: tabular-nums;
+  padding: 0 6px;
+  background: #fff;
+  color: #111;
+  border-radius: 3px;
+}
+
+#hud .scoreboard .clock {
+  font-variant-numeric: tabular-nums;
+  color: #ffd166;
+  margin-left: 4px;
+}
+
+#hud .controlled {
+  position: absolute;
+  top: 58px;
+  left: 16px;
+  padding: 3px 10px;
+  background: rgba(0, 0, 0, 0.45);
+  border-left: 4px solid #ffd23f;
+  font-weight: 700;
+}
+
+#hud .power {
+  position: absolute;
+  left: 50%;
+  bottom: 90px;
+  width: 220px;
+  height: 12px;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.55);
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  border-radius: 8px;
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+
+#hud .power.visible {
+  opacity: 1;
+}
+
+#hud .power .fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, #2bb673, #ffd23f 60%, #e63946);
+}
+
+#hud .message {
+  position: absolute;
+  top: 30%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  opacity: 0;
+  transform: scale(0.9);
+  transition: opacity 0.25s, transform 0.25s;
+}
+
+#hud .message.visible {
+  opacity: 1;
+  transform: scale(1);
+}
+
+#hud .message .title {
+  font-size: 72px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.04em;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
+}
+
+#hud .message .sub {
+  font-size: 20px;
+  font-weight: 700;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+}
+
+@media (max-width: 600px) {
+  #hud .scoreboard .name {
+    display: none;
+  }
+  #hud .message .title {
+    font-size: 48px;
+  }
+}

@@ -15,7 +15,11 @@ Ein web-basiertes Fußballspiel im FIFA-Style (à la Nintendo / PlayStation), in
 - Zehn realistische Kinderfiguren (9–11 Jahre, 1,30–1,46 m) mit Haaren, Trikot, Hose, Stutzen und Schuhen
 - Zwei Teams im 4+1 (FC Rot, SV Blau) mit Trikotfarben, Rückennummer und Namen, eigene Torwart-Trikots
 - Ein Spieler (gelber Ring) steuerbar per Tastatur oder Gamepad, mit Steh-/Geh-/Lauf-Animationen und Körperneigung
-- TV-Kamera an der Seitenlinie, die dem Spieler folgt, plus Totale
+- TV-Kamera an der Seitenlinie, die dem Ball folgt, plus Totale
+- Ball (Größe 4) mit Physik (Rapier): Rollen, Springen, Pfosten, Latte, Netz, Banden, Spieler
+- Dribbeln, Pass zum Mitspieler in Laufrichtung (mit automatischem Spielerwechsel), Schuss mit Aufladen, Spielerwechsel
+- Regeln: Tor, Anstoß, Seitenaus mit Eindribbeln, Ecke, Abstoß; Anzeigetafel mit Spielstand und Uhr
+- Noch ohne KI: Mit- und Gegenspieler stehen, der Gegner hält den Ball nur fest, wenn er ihn bekommt
 
 ## Testen
 
@@ -27,6 +31,10 @@ Die aktuelle Version von `main` wird automatisch veröffentlicht: **https://winf
 |---|---|---|
 | Laufen | WASD / Pfeiltasten | linker Stick |
 | Sprinten | Shift | R2 / RT (oder R1 / RB) |
+| Pass | E (oder J) | ✕ / A |
+| Schuss (halten = mehr Kraft) | Leertaste (oder K) | ○ / B |
+| Zielen beim Schuss | W / S (oben / unten) | Stick hoch / runter |
+| Spieler wechseln | Q (oder L) | L1 / LB |
 | Kamera wechseln | C | △ / Y |
 | Zoom | Mausrad | – |
 
@@ -44,7 +52,7 @@ npm run build    # Typprüfung + Produktions-Build nach dist/
 
 - [Three.js](https://threejs.org/) (WebGL) mit TypeScript
 - [Vite](https://vite.dev/) als Build-Tool
-- Später: [Rapier](https://rapier.rs/) für Ballphysik
+- [Rapier](https://rapier.rs/) für die Ballphysik
 
 ## Projektstruktur
 
@@ -56,6 +64,10 @@ src/
   world/goal.ts             Jugendtore mit Netz
   world/environment.ts      Himmel, Licht, Banden, Umgebung
   teams.ts                  Teams, Trikots, Aufstellung im 4+1
+  game/match.ts             Spiellogik: Ballbesitz, Pass, Schuss, Regeln
+  ball/ball.ts              Ball (Physik, Rollwiderstand, Muster)
+  physics/world.ts          Physikwelt: Boden, Tore, Netz, Banden
+  hud/hud.ts                Anzeigetafel, Kraftbalken, Meldungen
   player/character.ts       Spielerfiguren laden und einkleiden
   player/player.ts          Bewegung, Animationen
   camera/broadcastCamera.ts TV-Kamera

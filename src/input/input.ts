@@ -6,20 +6,55 @@ export interface InputState {
   moveX: number;
   moveY: number;
   sprint: boolean;
-  /** Wird genau ein Frame lang true, wenn die Kamera gewechselt werden soll. */
+  /** Pass: genau ein Frame lang true beim Drücken */
+  pass: boolean;
+  /** Schuss: true, solange gehalten (Kraft aufladen) */
+  shoot: boolean;
+  /** Schuss-Taste wurde seit dem letzten Bild gedrückt (auch bei ganz kurzem Antippen) */
+  shootTap: boolean;
+  /** Spielerwechsel: genau ein Frame lang true */
+  switchPlayer: boolean;
+  /** Kamera wechseln: genau ein Frame lang true */
   switchCamera: boolean;
 }
 
+export const NO_INPUT: InputState = {
+  moveX: 0,
+  moveY: 0,
+  sprint: false,
+  pass: false,
+  shoot: false,
+  shootTap: false,
+  switchPlayer: false,
+  switchCamera: false,
+};
+
 const DEADZONE = 0.18;
+
+// Gamepad-Standardbelegung (PlayStation / Xbox)
+const PAD = { pass: 0, shoot: 1, camera: 3, switchPlayer: 4, sprintR1: 5, sprintR2: 7 } as const;
+
+type EdgeAction = 'pass' | 'shootTap' | 'switchPlayer' | 'switchCamera';
+
+const KEY_EDGES: Record<string, EdgeAction> = {
+  KeyE: 'pass',
+  Space: 'shootTap',
+  KeyK: 'shootTap',
+  KeyJ: 'pass',
+  KeyQ: 'switchPlayer',
+  KeyL: 'switchPlayer',
+  KeyC: 'switchCamera',
+};
 
 export class Input {
   private keys = new Set<string>();
-  private cameraPressed = false;
-  private padCameraWasDown = false;
+  private pressed = new Set<EdgeAction>();
+  private padPrev = new Map<number, boolean>();
 
   constructor(target: Window = window) {
     target.addEventListener('keydown', (e) => {
-      if (e.code === 'KeyC' && !e.repeat) this.cameraPressed = true;
+      const edge = KEY_EDGES[e.code];
+      if (edge && !e.repeat) this.pressed.add(edge);
       this.keys.add(e.code);
       if (e.code.startsWith('Arrow') || e.code === 'Space') e.preventDefault();
     });
@@ -32,8 +67,9 @@ export class Input {
     let x = (k('KeyD', 'ArrowRight') ? 1 : 0) - (k('KeyA', 'ArrowLeft') ? 1 : 0);
     let y = (k('KeyW', 'ArrowUp') ? 1 : 0) - (k('KeyS', 'ArrowDown') ? 1 : 0);
     let sprint = k('ShiftLeft', 'ShiftRight');
-    let switchCamera = this.cameraPressed;
-    this.cameraPressed = false;
+    let shoot = k('Space', 'KeyK');
+    const edges = new Set(this.pressed);
+    this.pressed.clear();
 
     const pad = firstGamepad();
     if (pad) {
@@ -46,11 +82,17 @@ export class Input {
         x = ax * scale;
         y = ay * scale;
       }
-      // Standard-Mapping: 5 = R1/RB, 7 = R2/RT, 3 = Dreieck/Y
-      if (pressed(pad, 7) || pressed(pad, 5)) sprint = true;
-      const camDown = pressed(pad, 3);
-      if (camDown && !this.padCameraWasDown) switchCamera = true;
-      this.padCameraWasDown = camDown;
+      if (isDown(pad, PAD.sprintR2) || isDown(pad, PAD.sprintR1)) sprint = true;
+      if (isDown(pad, PAD.shoot)) shoot = true;
+      const edge = (button: number, action: EdgeAction) => {
+        const down = isDown(pad, button);
+        if (down && !this.padPrev.get(button)) edges.add(action);
+        this.padPrev.set(button, down);
+      };
+      edge(PAD.pass, 'pass');
+      edge(PAD.shoot, 'shootTap');
+      edge(PAD.switchPlayer, 'switchPlayer');
+      edge(PAD.camera, 'switchCamera');
     }
 
     // Diagonalen auf Länge 1 begrenzen (Tastatur)
@@ -59,7 +101,16 @@ export class Input {
       x /= len;
       y /= len;
     }
-    return { moveX: x, moveY: y, sprint, switchCamera };
+    return {
+      moveX: x,
+      moveY: y,
+      sprint,
+      shoot,
+      pass: edges.has('pass'),
+      shootTap: edges.has('shootTap'),
+      switchPlayer: edges.has('switchPlayer'),
+      switchCamera: edges.has('switchCamera'),
+    };
   }
 }
 
@@ -69,7 +120,7 @@ function firstGamepad(): Gamepad | null {
   return null;
 }
 
-function pressed(pad: Gamepad, i: number): boolean {
+function isDown(pad: Gamepad, i: number): boolean {
   const b = pad.buttons[i];
   return !!b && (b.pressed || b.value > 0.3);
 }

@@ -1,11 +1,15 @@
 import * as THREE from 'three';
 import './style.css';
-import { PITCH } from './config';
+import { Ball } from './ball/ball';
 import { BroadcastCamera } from './camera/broadcastCamera';
+import { PITCH } from './config';
+import { Match } from './game/match';
+import { Hud } from './hud/hud';
 import { Input } from './input/input';
+import { createPhysics } from './physics/world';
 import { CharacterLibrary } from './player/character';
 import { Player } from './player/player';
-import { TEAMS, kickoffSpot } from './teams';
+import { TEAMS } from './teams';
 import { createSurroundings, setupSkyAndLight } from './world/environment';
 import { createGoals } from './world/goal';
 import { createPitch } from './world/pitch';
@@ -28,32 +32,38 @@ async function main() {
   scene.add(createGoals());
   scene.add(createSurroundings(renderer));
 
+  const physics = await createPhysics();
+  const ball = new Ball(physics);
+  scene.add(ball.mesh);
+
   const bounds = new THREE.Box2(
     new THREE.Vector2(-PITCH.length / 2 - PITCH.runoff + 0.5, -PITCH.width / 2 - PITCH.runoff + 0.5),
     new THREE.Vector2(PITCH.length / 2 + PITCH.runoff - 0.5, PITCH.width / 2 + PITCH.runoff - 0.5),
   );
 
-  // Beide Teams im 4+1 aufstellen
+  // Beide Teams im 4+1
   const library = await CharacterLibrary.load();
-  const players: Player[] = [];
-  let controlled: Player | undefined;
-  await Promise.all(
-    TEAMS.flatMap((team, ti) => {
-      const side = ti === 0 ? -1 : 1;
-      return team.lineup.map(async (entry) => {
-        const kit = entry.position === 'TW' ? team.keeperKit : team.kit;
-        const character = await library.create(entry.character, kit, entry.number, renderer);
-        const player = new Player(character, { bounds, yaw: side < 0 ? Math.PI / 2 : -Math.PI / 2 });
-        const spot = kickoffSpot(entry.position, side);
-        player.position.set(spot.x, 0, spot.z);
-        scene.add(player.root);
-        players.push(player);
-        if (ti === 0 && entry.position === 'ST') controlled = player;
-      });
-    }),
-  );
-  if (!controlled) throw new Error('Kein steuerbarer Spieler in der Aufstellung');
-  const me = controlled;
+  const players = (
+    await Promise.all(
+      TEAMS.flatMap((team, ti) =>
+        team.lineup.map(async (entry) => {
+          const kit = entry.position === 'TW' ? team.keeperKit : team.kit;
+          const character = await library.create(entry.character, kit, entry.number, renderer);
+          return new Player(character, {
+            team: ti as 0 | 1,
+            role: entry.position,
+            number: entry.number,
+            bounds,
+            physics,
+          });
+        }),
+      ),
+    )
+  ).flat();
+  for (const p of players) scene.add(p.root);
+
+  const hud = new Hud(TEAMS);
+  const match = new Match(players, ball, TEAMS, hud);
 
   // Markierung unter dem gesteuerten Spieler (wie bei FIFA)
   const marker = new THREE.Mesh(
@@ -65,7 +75,10 @@ async function main() {
   scene.add(marker);
 
   const cam = new BroadcastCamera(window.innerWidth / window.innerHeight, renderer.domElement);
-  cam.snap(me.position);
+  const focus = new THREE.Vector3();
+  const updateFocus = () => focus.copy(ball.position).setY(0).lerp(match.controlled.position, 0.35);
+  updateFocus();
+  cam.snap(focus);
 
   const input = new Input();
 
@@ -74,21 +87,31 @@ async function main() {
     cam.setAspect(window.innerWidth / window.innerHeight);
   });
 
-  // Für Tests und Debugging im Browser erreichbar
-  (window as unknown as { kidsKick: object }).kidsKick = { player: me, players, cam, scene, renderer };
+  // Für Tests und Debugging im Browser erreichbar (timeScale < 1 = Zeitlupe)
+  const debug = { match, ball, players, cam, scene, renderer, timeScale: 1 };
+  (window as unknown as { kidsKick: object }).kidsKick = debug;
 
   const timer = new THREE.Timer();
   timer.connect(document);
   renderer.setAnimationLoop((time) => {
     timer.update(time);
-    const dt = Math.min(timer.getDelta(), 1 / 20);
+    const dt = Math.min(timer.getDelta(), 1 / 20) * debug.timeScale;
     const state = input.read();
     if (state.switchCamera) cam.toggleMode();
-    for (const p of players) p.update(dt, p === me ? state : undefined);
-    for (const p of players) if (p !== me) me.separateFrom(p);
-    marker.position.x = me.position.x;
-    marker.position.z = me.position.z;
-    cam.update(me.position, dt);
+
+    match.update(dt, state);
+    physics.step(dt, (h) => {
+      ball.preStep(h);
+      match.preStep();
+    });
+    ball.sync();
+    match.postStep();
+    hud.update(dt);
+
+    marker.position.x = match.controlled.position.x;
+    marker.position.z = match.controlled.position.z;
+    updateFocus();
+    cam.update(focus, dt);
 
     renderer.render(scene, cam.camera);
   });

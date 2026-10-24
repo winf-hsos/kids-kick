@@ -16,6 +16,8 @@ export interface InputState {
   switchPlayer: boolean;
   /** Kamera wechseln: genau ein Frame lang true */
   switchCamera: boolean;
+  /** Pause umschalten: genau ein Frame lang true */
+  pause: boolean;
 }
 
 export const NO_INPUT: InputState = {
@@ -27,14 +29,15 @@ export const NO_INPUT: InputState = {
   shootTap: false,
   switchPlayer: false,
   switchCamera: false,
+  pause: false,
 };
 
 const DEADZONE = 0.18;
 
 // Gamepad-Standardbelegung (PlayStation / Xbox)
-const PAD = { pass: 0, shoot: 1, camera: 3, switchPlayer: 4, sprintR1: 5, sprintR2: 7 } as const;
+const PAD = { pass: 0, shoot: 1, camera: 3, switchPlayer: 4, sprintR1: 5, sprintR2: 7, start: 9 } as const;
 
-type EdgeAction = 'pass' | 'shootTap' | 'switchPlayer' | 'switchCamera';
+type EdgeAction = 'pass' | 'shootTap' | 'switchPlayer' | 'switchCamera' | 'pause';
 
 const KEY_EDGES: Record<string, EdgeAction> = {
   KeyE: 'pass',
@@ -44,6 +47,7 @@ const KEY_EDGES: Record<string, EdgeAction> = {
   KeyQ: 'switchPlayer',
   KeyL: 'switchPlayer',
   KeyC: 'switchCamera',
+  KeyP: 'pause',
 };
 
 export class Input {
@@ -93,6 +97,7 @@ export class Input {
       edge(PAD.shoot, 'shootTap');
       edge(PAD.switchPlayer, 'switchPlayer');
       edge(PAD.camera, 'switchCamera');
+      edge(PAD.start, 'pause');
     }
 
     // Diagonalen auf Länge 1 begrenzen (Tastatur)
@@ -110,6 +115,7 @@ export class Input {
       shootTap: edges.has('shootTap'),
       switchPlayer: edges.has('switchPlayer'),
       switchCamera: edges.has('switchCamera'),
+      pause: edges.has('pause'),
     };
   }
 }

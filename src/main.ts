@@ -4,12 +4,14 @@ import { Ball } from './ball/ball';
 import { BroadcastCamera } from './camera/broadcastCamera';
 import { PITCH } from './config';
 import { Match } from './game/match';
+import { loadSettings } from './ai/settings';
 import { Hud } from './hud/hud';
 import { Input } from './input/input';
 import { createPhysics } from './physics/world';
 import { CharacterLibrary } from './player/character';
 import { Player } from './player/player';
 import { TEAMS } from './teams';
+import { SettingsPanel } from './ui/settingsPanel';
 import { createSurroundings, setupSkyAndLight } from './world/environment';
 import { createGoals } from './world/goal';
 import { createPitch } from './world/pitch';
@@ -63,7 +65,17 @@ async function main() {
   for (const p of players) scene.add(p.root);
 
   const hud = new Hud(TEAMS);
-  const match = new Match(players, ball, TEAMS, hud);
+  const match = new Match(players, ball, TEAMS, hud, loadSettings());
+  let paused = false;
+  const panel = new SettingsPanel(
+    match.settings,
+    (s) => match.setSettings(s),
+    () => togglePause(),
+  );
+  const togglePause = () => {
+    paused = !paused;
+    panel.setPaused(paused);
+  };
 
   // Markierung unter dem gesteuerten Spieler (wie bei FIFA)
   const marker = new THREE.Mesh(
@@ -76,7 +88,10 @@ async function main() {
 
   const cam = new BroadcastCamera(window.innerWidth / window.innerHeight, renderer.domElement);
   const focus = new THREE.Vector3();
-  const updateFocus = () => focus.copy(ball.position).setY(0).lerp(match.controlled.position, 0.35);
+  const updateFocus = () => {
+    focus.copy(ball.position).setY(0);
+    if (match.controlled) focus.lerp(match.controlled.position, 0.35);
+  };
   updateFocus();
   cam.snap(focus);
 
@@ -95,21 +110,24 @@ async function main() {
   timer.connect(document);
   renderer.setAnimationLoop((time) => {
     timer.update(time);
-    const dt = Math.min(timer.getDelta(), 1 / 20) * debug.timeScale;
     const state = input.read();
     if (state.switchCamera) cam.toggleMode();
+    if (state.pause) togglePause();
+    const dt = paused ? 0 : Math.min(timer.getDelta(), 1 / 20) * debug.timeScale;
 
-    match.update(dt, state);
-    physics.step(dt, (h) => {
-      ball.preStep(h);
-      match.preStep();
-    });
-    ball.sync();
-    match.postStep();
-    hud.update(dt);
+    if (dt > 0) {
+      match.update(dt, state);
+      physics.step(dt, (h) => {
+        ball.preStep(h);
+        match.preStep();
+      });
+      ball.sync();
+      match.postStep();
+      hud.update(dt);
+    }
 
-    marker.position.x = match.controlled.position.x;
-    marker.position.z = match.controlled.position.z;
+    marker.visible = match.controlled !== null;
+    if (match.controlled) marker.position.set(match.controlled.position.x, 0.015, match.controlled.position.z);
     updateFocus();
     cam.update(focus, dt);
 

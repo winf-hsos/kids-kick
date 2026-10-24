@@ -19,7 +19,11 @@ Ein web-basiertes Fußballspiel im FIFA-Style (à la Nintendo / PlayStation), in
 - Ball (Größe 4) mit Physik (Rapier): Rollen, Springen, Pfosten, Latte, Netz, Banden, Spieler
 - Dribbeln, Pass zum Mitspieler in Laufrichtung (mit automatischem Spielerwechsel), Schuss mit Aufladen, Spielerwechsel
 - Regeln: Tor, Anstoß, Seitenaus mit Eindribbeln, Ecke, Abstoß; Anzeigetafel mit Spielstand und Uhr
-- Noch ohne KI: Mit- und Gegenspieler stehen, der Gegner hält den Ball nur fest, wenn er ihn bekommt
+- KI für Mit- und Gegenspieler: Formation, die mit dem Ball wandert, Anbieten in freie Räume, Pressing,
+  Decken, Ballführung mit Entscheidung zwischen Dribbeln, Passen und Schießen; Torwart mit Stellungsspiel,
+  Rauslaufen und Hechtsprung
+- Einstellungen (oben rechts): Gegnerstärke Bambini / Kreisliga / Profi, Regler „Kinder-Realismus“
+  (diszipliniert bis Bienenschwarm), Modus „Ich spiele“ oder „Zuschauen“ (KI gegen KI), Pause
 
 ## Testen
 
@@ -36,6 +40,7 @@ Die aktuelle Version von `main` wird automatisch veröffentlicht: **https://winf
 | Zielen beim Schuss | W / S (oben / unten) | Stick hoch / runter |
 | Spieler wechseln | Q (oder L) | L1 / LB |
 | Kamera wechseln | C | △ / Y |
+| Pause | P | Start / Options |
 | Zoom | Mausrad | – |
 
 ## Entwicklung
@@ -65,6 +70,9 @@ src/
   world/environment.ts      Himmel, Licht, Banden, Umgebung
   teams.ts                  Teams, Trikots, Aufstellung im 4+1
   game/match.ts             Spiellogik: Ballbesitz, Pass, Schuss, Regeln
+  ai/teamAI.ts              KI: Formation, Entscheidungen, Torwart
+  ai/settings.ts            Schwierigkeitsstufen und Einstellungen
+  ui/settingsPanel.ts       Einstellungs-Menü
   ball/ball.ts              Ball (Physik, Rollwiderstand, Muster)
   physics/world.ts          Physikwelt: Boden, Tore, Netz, Banden
   hud/hud.ts                Anzeigetafel, Kraftbalken, Meldungen

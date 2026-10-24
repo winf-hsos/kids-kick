@@ -52,8 +52,8 @@ export class Hud {
     this.clock.textContent = `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
   }
 
-  setControlled(number: number, name: string) {
-    this.controlled.textContent = `▶ ${number}  ${name}`;
+  setControlled(number: number | null, name: string) {
+    this.controlled.textContent = number === null ? name : `▶ ${number}  ${name}`;
   }
 
   /** Schusskraft 0..1, null blendet den Balken aus */

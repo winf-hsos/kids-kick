@@ -67,6 +67,8 @@ export class Player {
   private yaw: number;
   private lean = new THREE.Vector2();
   private kickState: KickState | null = null;
+  /** Hechtsprung des Torwarts */
+  private diveState: { t: number; dir: THREE.Vector3 } | null = null;
 
   constructor(character: CharacterInstance, private opts: PlayerOptions) {
     this.info = character.info;
@@ -131,6 +133,19 @@ export class Player {
     return this.kickState !== null;
   }
 
+  get isDiving() {
+    return this.diveState !== null;
+  }
+
+  /** Torwart: Hechtsprung zur Seite (dir = Richtung in der Ebene). */
+  dive(dir: THREE.Vector3) {
+    if (this.diveState) return;
+    const d = dir.clone().setY(0).normalize();
+    this.diveState = { t: 0, dir: d };
+    this.velocity.copy(d).multiplyScalar(5.5);
+    this.kickState = null;
+  }
+
   /** Stellt den Spieler ruhend an eine Position (Anstoß). */
   resetTo(x: number, z: number, yaw: number) {
     this.position.set(x, 0, z);
@@ -138,6 +153,7 @@ export class Player {
     this.yaw = yaw;
     this.root.rotation.y = yaw;
     this.kickState = null;
+    this.diveState = null;
     // Teleportieren statt Bewegen, sonst würde der Körper den Ball wegschleudern
     this.collider.setTranslation({ x, y: BODY_HALF_HEIGHT + BODY_RADIUS, z }, true);
   }
@@ -163,6 +179,11 @@ export class Player {
    * @param lookAt Punkt, zu dem sich ein stehender Spieler langsam hindreht (z. B. der Ball)
    */
   update(dt: number, input: InputState = NO_INPUT, lookAt?: THREE.Vector3) {
+    if (dt <= 0) return;
+    if (this.diveState) {
+      this.updateDive(dt, this.diveState);
+      return;
+    }
     const kick = this.kickState;
 
     // --- Bewegung -----------------------------------------------------------
@@ -213,6 +234,35 @@ export class Player {
       y: BODY_HALF_HEIGHT + BODY_RADIUS,
       z: this.position.z,
     });
+  }
+
+  private updateDive(dt: number, d: { t: number; dir: THREE.Vector3 }) {
+    d.t += dt;
+    const u = d.t / 0.95;
+    this.velocity.multiplyScalar(Math.exp(-2.2 * dt));
+    this.root.position.addScaledVector(this.velocity, dt);
+    this.clampToBounds();
+
+    // Seitlich umkippen in Sprungrichtung, Arme nach oben
+    const left = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
+    const side = Math.sign(d.dir.dot(left)) || 1;
+    const tilt = curve(u, [0, 0], [0.25, 78], [0.6, 82], [1, 0]);
+    this.body.rotation.set(0, 0, THREE.MathUtils.degToRad(-side * tilt));
+    this.animate(dt, 0);
+    const arms = curve(u, [0, 0], [0.2, 140], [0.6, 140], [1, 0]);
+    this.rotateInModelSpace(this.bones.leftArm, Z_AXIS, arms);
+    this.rotateInModelSpace(this.bones.rightArm, Z_AXIS, -arms);
+
+    const reach = THREE.MathUtils.clamp(tilt / 80, 0, 1);
+    this.collider.setNextKinematicTranslation({
+      x: this.position.x + d.dir.x * 0.6 * reach,
+      y: BODY_HALF_HEIGHT + BODY_RADIUS - 0.35 * reach,
+      z: this.position.z + d.dir.z * 0.6 * reach,
+    });
+    if (u >= 1) {
+      this.diveState = null;
+      this.body.rotation.set(0, 0, 0);
+    }
   }
 
   /** Schiebt diesen Spieler aus einem anderen heraus (einfache Kreis-Kollision). */

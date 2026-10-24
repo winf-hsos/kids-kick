@@ -183,3 +183,116 @@ body {
     font-size: 48px;
   }
 }
+
+/* --- Einstellungen ------------------------------------------------------ */
+#hud .settings {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+  pointer-events: auto;
+  font-size: 13px;
+}
+
+#hud .settings > button {
+  font: inherit;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(10, 16, 24, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 6px;
+  padding: 6px 12px;
+  cursor: pointer;
+}
+
+#hud .settings button:focus-visible,
+#hud .settings input:focus-visible {
+  outline: 2px solid #ffd23f;
+  outline-offset: 2px;
+}
+
+#hud .settings .body[hidden],
+#hud .settings [hidden] {
+  display: none;
+}
+
+#hud .settings .body {
+  width: 250px;
+  padding: 10px 12px;
+  background: rgba(10, 16, 24, 0.88);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+#hud .settings fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+
+#hud .settings legend {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #ffd166;
+  margin-bottom: 4px;
+}
+
+#hud .settings .segmented {
+  display: flex;
+  gap: 4px;
+}
+
+#hud .settings .segmented button {
+  flex: 1;
+  font: inherit;
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 5px;
+  padding: 5px 4px;
+  cursor: pointer;
+}
+
+#hud .settings .segmented button[aria-pressed='true'] {
+  background: #ffd23f;
+  color: #111;
+  border-color: #ffd23f;
+  font-weight: 700;
+}
+
+#hud .settings input[type='range'] {
+  width: 100%;
+  accent-color: #ffd23f;
+}
+
+#hud .settings .scale {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  opacity: 0.8;
+}
+
+#hud .settings .paused-badge {
+  position: fixed;
+  left: 50%;
+  top: 45%;
+  transform: translate(-50%, -50%);
+  font-size: 56px;
+  font-weight: 900;
+  font-style: italic;
+  letter-spacing: 0.1em;
+  text-shadow: 0 4px 18px rgba(0, 0, 0, 0.6);
+  pointer-events: none;
+}
+
+@media (max-width: 760px) {
+  #hud .scoreboard {
+    top: 60px;
+  }
+}

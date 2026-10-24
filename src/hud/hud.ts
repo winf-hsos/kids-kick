@@ -56,9 +56,10 @@ export class Hud {
     this.controlled.textContent = number === null ? name : `▶ ${number}  ${name}`;
   }
 
-  /** Schusskraft 0..1, null blendet den Balken aus */
-  setPower(p: number | null) {
+  /** Schusskraft bzw. Passhärte 0..1, null blendet den Balken aus */
+  setPower(p: number | null, kind: 'pass' | 'shot' = 'shot') {
     this.powerWrap.classList.toggle('visible', p !== null);
+    this.powerWrap.classList.toggle('pass', kind === 'pass');
     if (p !== null) this.power.style.width = `${Math.round(p * 100)}%`;
   }
 

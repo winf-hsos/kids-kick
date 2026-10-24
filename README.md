@@ -17,7 +17,12 @@ Ein web-basiertes Fußballspiel im FIFA-Style (à la Nintendo / PlayStation), in
 - Ein Spieler (gelber Ring) steuerbar per Tastatur oder Gamepad, mit Steh-/Geh-/Lauf-Animationen und Körperneigung
 - TV-Kamera an der Seitenlinie, die dem Ball folgt, plus Totale
 - Ball (Größe 4) mit Physik (Rapier): Rollen, Springen, Pfosten, Latte, Netz, Banden, Spieler
-- Dribbeln, Pass zum Mitspieler in Laufrichtung (mit automatischem Spielerwechsel), Schuss mit Aufladen, Spielerwechsel
+- Dribbeln mit einzelnen Ballkontakten: je schneller, desto weiter vorgelegt; Kontakte streuen, der Ball
+  verspringt ab und zu – abhängig von Tempo und Ballkontrolle
+- Ballannahme: scharfe Pässe springen je nach Annahme-Fähigkeit weg
+- Pass zum Mitspieler in Laufrichtung, Härte über die Haltedauer, Direktpass (Doppelpass) und Direktschuss
+- Schuss mit Aufladen, Spielerwechsel
+- Fähigkeiten je Kind (`src/player/skills.ts`): Tempo, Ballkontrolle, Annahme, Passen, Schießen, Zweikampf, Torwart
 - Regeln: Tor, Anstoß, Seitenaus mit Eindribbeln, Ecke, Abstoß; Anzeigetafel mit Spielstand und Uhr
 - KI für Mit- und Gegenspieler: Formation, die mit dem Ball wandert, Anbieten in freie Räume, Pressing,
   Decken, Ballführung mit Entscheidung zwischen Dribbeln, Passen und Schießen; Torwart mit Stellungsspiel,
@@ -35,9 +40,10 @@ Die aktuelle Version von `main` wird automatisch veröffentlicht: **https://winf
 |---|---|---|
 | Laufen | WASD / Pfeiltasten | linker Stick |
 | Sprinten | Shift | R2 / RT (oder R1 / RB) |
-| Pass | E (oder J) | ✕ / A |
+| Pass (halten = härter) | E (oder J) | ✕ / A |
 | Schuss (halten = mehr Kraft) | Leertaste (oder K) | ○ / B |
 | Zielen beim Schuss | W / S (oben / unten) | Stick hoch / runter |
+| Direktpass / Direktschuss | Taste schon halten, bevor der Ball ankommt | ebenso |
 | Spieler wechseln | Q (oder L) | L1 / LB |
 | Kamera wechseln | C | △ / Y |
 | Pause | P | Start / Options |

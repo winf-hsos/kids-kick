@@ -10,6 +10,7 @@ import { Input } from './input/input';
 import { createPhysics } from './physics/world';
 import { CharacterLibrary } from './player/character';
 import { Player } from './player/player';
+import { skillsFor } from './player/skills';
 import { TEAMS } from './teams';
 import { SettingsPanel } from './ui/settingsPanel';
 import { createSurroundings, setupSkyAndLight } from './world/environment';
@@ -52,6 +53,7 @@ async function main() {
           const kit = entry.position === 'TW' ? team.keeperKit : team.kit;
           const character = await library.create(entry.character, kit, entry.number, renderer);
           return new Player(character, {
+            skills: skillsFor(entry.character),
             team: ti as 0 | 1,
             role: entry.position,
             number: entry.number,
@@ -119,7 +121,7 @@ async function main() {
       match.update(dt, state);
       physics.step(dt, (h) => {
         ball.preStep(h);
-        match.preStep();
+        match.preStep(h);
       });
       ball.sync();
       match.postStep();

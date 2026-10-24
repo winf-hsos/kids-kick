@@ -145,6 +145,10 @@ body {
   background: linear-gradient(90deg, #2bb673, #ffd23f 60%, #e63946);
 }
 
+#hud .power.pass .fill {
+  background: linear-gradient(90deg, #8ecae6, #219ebc 60%, #023e8a);
+}
+
 #hud .message {
   position: absolute;
   top: 30%;

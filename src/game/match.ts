@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import { TeamAI } from '../ai/teamAI';
 import { DIFFICULTIES, type AiProfile, type GameSettings } from '../ai/settings';
-import { BALL_RADIUS, type Ball } from '../ball/ball';
-import { GOAL, PITCH } from '../config';
+import { BALL_RADIUS, rollingDecel, type Ball } from '../ball/ball';
+import { GOAL, PITCH, PLAYER } from '../config';
 import type { Hud } from '../hud/hud';
 import { NO_INPUT, type InputState } from '../input/input';
 import type { Player } from '../player/player';
@@ -18,8 +18,14 @@ const KEEPER_DIVE_REACH = 1.5;
 const KICK_COOLDOWN = 0.45;
 /** Nach einer Balleroberung kann der Ball kurz nicht zurückerobert werden. */
 const STEAL_IMMUNITY = 1.0;
-/** Zeit bis zur vollen Schusskraft (s) */
-const CHARGE_TIME = 1.0;
+/** Zeit bis zur vollen Schusskraft bzw. Passhärte (s) */
+const SHOT_CHARGE_TIME = 1.0;
+const PASS_CHARGE_TIME = 0.8;
+/** Ab diesem Abstand zum Ballführer gilt der Ball als frei */
+const DRIBBLE_LOST = 4.5;
+/** Abstand Fuß–Ball, bei dem der nächste Dribbelkontakt erfolgt */
+const TOUCH_RADIUS = 0.55;
+
 type Phase =
   | { kind: 'play' }
   | { kind: 'stopped'; timer: number; restart: () => void };
@@ -29,6 +35,10 @@ type Phase =
  * Tor und Aus nach Kinderfußball-Regeln (Eindribbeln, Ecke, Abstoß).
  * Team 0 spielt in Richtung +x. Der Mensch steuert einen Spieler von Team 0
  * (oder niemanden im Zuschauen-Modus); alle anderen steuert die KI.
+ *
+ * Dribbeln besteht aus einzelnen Ballkontakten: Der Spieler legt sich den Ball
+ * vor (je schneller, desto weiter) und läuft hinterher. Jeder Kontakt streut,
+ * und ab und zu verspringt der Ball – abhängig von Tempo und Ballkontrolle.
  */
 export class Match {
   controlled: Player | null = null;
@@ -46,7 +56,12 @@ export class Match {
   private immuneUntil = 0;
   /** Torwart, der einen Ball schon verpasst hat (kein zweiter Versuch) */
   private keeperBeaten = new Map<Player, number>();
-  private charge: number | null = null;
+  private shotCharge: number | null = null;
+  private passCharge: number | null = null;
+  private touchTimer = 0;
+  private lastInput: InputState = NO_INPUT;
+  /** Pass/Schuss, der mit dem nächsten Ballkontakt gespielt wird (Ball war gerade vorgelegt) */
+  private pending: { p: Player; kind: 'pass' | 'shot'; power: number; input: InputState; until: number } | null = null;
   private readonly ai: TeamAI[];
 
   constructor(
@@ -104,14 +119,16 @@ export class Match {
     }
 
     const me = this.controlled;
+    this.lastInput = input;
     if (me) {
       if (input.switchPlayer && this.possessor !== me) this.setControlled(this.nearestTeammate(0, me));
-      if (input.pass) this.humanPass(me, input);
-      this.handleShot(me, dt, input);
+      this.handlePassButton(me, dt, input);
+      this.handleShotButton(me, dt, input);
     } else {
-      this.charge = null;
-      this.hud.setPower(null);
+      this.passCharge = null;
+      this.shotCharge = null;
     }
+    this.hud.setPower(this.shotCharge ?? this.passCharge, this.shotCharge !== null ? 'shot' : 'pass');
 
     const inputs = new Map<Player, InputState>();
     for (const ai of this.ai) ai.update(dt, inputs);
@@ -129,24 +146,76 @@ export class Match {
     }
 
     this.updatePossession(dt);
+    this.runPending();
   }
 
-  /** Vor jedem Physikschritt: Ball am Fuß des Ballbesitzers führen. */
-  preStep() {
+  private runPending() {
+    const q = this.pending;
+    if (!q) return;
+    if (this.possessor !== q.p || this.clock > q.until || this.controlled !== q.p) {
+      this.pending = null;
+    } else if (this.canKick(q.p)) {
+      this.pending = null;
+      if (q.kind === 'pass') this.humanPass(q.p, q.power, q.input);
+      else this.humanShot(q.p, q.power, q.input);
+    }
+  }
+
+  /** Mensch will passen/schießen: sofort, oder beim nächsten Ballkontakt, falls der Ball gerade vorgelegt ist */
+  private humanKick(p: Player, kind: 'pass' | 'shot', power: number, input: InputState) {
+    if (this.canKick(p)) {
+      if (kind === 'pass') this.humanPass(p, power, input);
+      else this.humanShot(p, power, input);
+    } else if (this.possessor === p) {
+      this.pending = { p, kind, power, input: { ...input }, until: this.clock + 1.0 };
+    }
+  }
+
+  /** Vor jedem Physikschritt: Ballkontakte des Ballführers. */
+  preStep(h: number) {
     const p = this.possessor;
     if (!p || p.isKicking) return;
-    const ball = this.ball.position;
-    const moving = p.speed > 0.4;
-    const dir = moving ? p.velocity.clone().setY(0).normalize() : p.facing;
-    // Beim Sprint springt der Ball weiter vom Fuß
-    const lead = 0.42 + 0.07 * p.speed;
-    const target = p.position.clone().addScaledVector(dir, lead);
-    const v = p.velocity.clone().add(target.sub(ball).setY(0).multiplyScalar(9));
-    const max = p.speed + 4;
-    if (v.length() > max) v.setLength(max);
-    v.y = this.ball.onGround ? 0 : this.ball.velocity.y;
+    this.touchTimer -= h;
+    const ball = this.ball.position.clone();
+    const rel = ball.clone().sub(p.position).setY(0);
+    const dist = rel.length();
+
+    if (p.speed < 0.6) {
+      // Stehend: Ball abschirmen und sanft vor den Fuß holen
+      if (dist < 1.2 && this.ball.onGround) {
+        const target = p.position.clone().addScaledVector(p.facing, 0.4);
+        const v = target.sub(ball).setY(0).multiplyScalar(4);
+        if (v.length() > 1.5) v.setLength(1.5);
+        this.ball.setVelocity(v);
+        this.ball.matchRolling();
+      }
+      return;
+    }
+
+    const dir = p.velocity.clone().setY(0).normalize();
+    const ballVel = this.ball.velocity;
+    const away = ballVel.clone().sub(p.velocity).dot(dir);
+    if (this.touchTimer > 0 || dist > TOUCH_RADIUS || away > 0.8 || !this.ball.onGround) return;
+
+    // --- Ballkontakt ---------------------------------------------------------
+    const s = THREE.MathUtils.clamp((p.speed - 1.5) / (PLAYER.sprintSpeed - 1.5), 0, 1); // 0 = gehen, 1 = Sprint
+    const control = p.skills.dribbling;
+    // Wie weit der Ball vorgelegt wird (m): gehen ~0,6, laufen ~1,2, Sprint ~3
+    const lead = (0.55 + 0.5 * s + 2.2 * s * s) * (1.25 - 0.5 * control);
+    const speed = p.speed + Math.sqrt(2 * rollingDecel(p.speed) * lead);
+    let angle = gauss() * (2 + 9 * s) * (1.4 - control);
+    let factor = 1 + gauss() * (0.06 + 0.18 * s) * (1.3 - control);
+    // Ball verspringt
+    if (Math.random() < (0.015 + 0.1 * s) * (1.25 - control)) {
+      angle += (Math.random() < 0.5 ? -1 : 1) * (25 + Math.random() * 25);
+      factor *= 1.25 + Math.random() * 0.45;
+    }
+    const v = dir.applyAxisAngle(UP, THREE.MathUtils.degToRad(angle)).multiplyScalar(speed * factor);
+    v.y = s > 0.6 ? Math.random() * 0.8 * s : 0;
     this.ball.setVelocity(v);
     this.ball.matchRolling();
+    p.touch();
+    this.touchTimer = 0.18;
   }
 
   /** Nach dem Physikschritt: Regeln prüfen. */
@@ -179,7 +248,7 @@ export class Match {
     const ballVel = this.ball.velocity;
     if (this.possessor) {
       const d = horizDist(this.possessor.position, ball);
-      if (d > 1.5 || ball.y > 0.8) this.possessor = null;
+      if (d > DRIBBLE_LOST || ball.y > 1.2) this.possessor = null;
     }
 
     // Torhüter: Bälle in Reichweite fangen (auch hohe und scharfe)
@@ -192,7 +261,8 @@ export class Match {
         const chest = k.position.clone().setY(Math.min(ball.y, 1.6));
         if (ball.y > 2.0 || chest.distanceTo(ball) > reach) continue;
         const fast = ballVel.length() > 6;
-        const chance = this.isHuman(k) ? 0.65 : this.profile.keeperCatch;
+        const base = this.isHuman(k) ? 0.65 : this.profile.keeperCatch;
+        const chance = Math.min(0.95, base * (0.6 + 0.6 * k.skills.keeping));
         if (!fast || Math.random() < chance) {
           this.ball.setVelocity(new THREE.Vector3());
           this.takePossession(k);
@@ -210,6 +280,8 @@ export class Match {
 
     if (ball.y > 0.45) return;
     const speed = ballVel.length();
+    const owner = this.possessor;
+    const ownerDist = owner ? horizDist(owner.position, ball) : 0;
 
     let best: Player | null = null;
     let bestD = CONTROL_RADIUS;
@@ -219,21 +291,67 @@ export class Match {
       const foot = p.position.clone().addScaledVector(p.facing, 0.25);
       const d = horizDist(foot, ball);
       if (d >= bestD) continue;
-      if (this.possessor) {
-        // Zweikampf: nur der Gegner, nicht direkt nach einer Eroberung
-        if (this.possessor === p || this.possessor.team === p.team || this.clock < this.immuneUntil) continue;
-        const rate = this.isHuman(p) ? 3 : this.profile.tackleRate;
-        if (Math.random() > rate * dt) continue;
-      } else if (speed > 14) {
+      if (owner) {
+        if (owner === p || owner.team === p.team || this.clock < this.immuneUntil) continue;
+        // Ball weit vorgelegt: Gegner läuft einfach dazwischen.
+        // Ball am Fuß: Zweikampf, gewonnen mit einer Rate je nach Zweikampfstärke.
+        if (ownerDist < 1.0) {
+          const rate = (this.isHuman(p) ? 3 : this.profile.tackleRate) * (0.5 + p.skills.tackling);
+          if (Math.random() > rate * dt) continue;
+        }
+      } else if (speed > 16) {
         continue;
       }
       best = p;
       bestD = d;
     }
-    if (best) {
-      if (this.possessor) this.immuneUntil = this.clock + STEAL_IMMUNITY;
+    if (!best) return;
+    if (owner) {
+      this.immuneUntil = this.clock + STEAL_IMMUNITY;
       this.takePossession(best);
+      this.settleBall(best);
+      return;
     }
+    this.receive(best, speed);
+  }
+
+  /** Ballannahme eines freien Balls: Direktspiel, saubere Annahme oder Verspringen. */
+  private receive(p: Player, ballSpeed: number) {
+    // Direktpass / Direktschuss: Taste wurde schon vor der Ankunft gehalten
+    if (this.isHuman(p) && this.passCharge !== null) {
+      const power = Math.max(0.3, this.passCharge);
+      this.passCharge = null;
+      this.humanPass(p, power, this.lastInput, true);
+      return;
+    }
+    if (this.isHuman(p) && this.shotCharge !== null) {
+      const power = Math.max(0.3, this.shotCharge);
+      this.shotCharge = null;
+      this.humanShot(p, power, this.lastInput, true);
+      return;
+    }
+
+    const rel = this.ball.velocity.sub(p.velocity).setY(0).length();
+    const high = this.ball.position.y > 0.25 ? 0.15 : 0;
+    const miss = THREE.MathUtils.clamp((rel - 3.5) / 12 + high, 0, 0.75) * (1.35 - p.skills.firstTouch);
+    if (ballSpeed > 2 && Math.random() < miss) {
+      // Ball springt vom Fuß weg
+      const v = this.ball.velocity.setY(0);
+      const out = v.clone().normalize().applyAxisAngle(UP, THREE.MathUtils.degToRad((Math.random() - 0.5) * 140));
+      this.ball.setVelocity(out.multiplyScalar(v.length() * (0.35 + Math.random() * 0.25)).setY(0.6));
+      this.cooldown.set(p, 0.35);
+      this.lastTouch = p.team;
+      return;
+    }
+    this.takePossession(p);
+    this.settleBall(p);
+  }
+
+  /** Ball nach Annahme/Eroberung beruhigen: rollt mit dem Spieler vor dessen Füßen. */
+  private settleBall(p: Player) {
+    this.ball.setVelocity(p.velocity.clone().multiplyScalar(0.9).setY(0));
+    this.ball.matchRolling();
+    this.touchTimer = 0.15;
   }
 
   private inOwnPenaltyArea(k: Player, ball: THREE.Vector3) {
@@ -278,44 +396,79 @@ export class Match {
 
   canKick(p: Player) {
     if (this.phase.kind !== 'play' || p.isKicking || p.isDiving) return false;
-    if (this.possessor === p) return true;
+    if (this.possessor === p) return horizDist(p.position, this.ball.position) < 1.3;
     // Freier Ball in Reichweite: direkt spielen
     return !this.possessor && horizDist(p.position, this.ball.position) < 1.0 && this.ball.position.y < 0.6;
   }
 
-  /** Flacher Pass zu einem Mitspieler (oder ohne Empfänger in Richtung dir). */
-  passTo(p: Player, receiver: Player | null, dir: THREE.Vector3, errorDeg: number) {
+  /**
+   * Flacher Pass zu einem Mitspieler (oder ohne Empfänger in Richtung dir).
+   * speed = Ballgeschwindigkeit (m/s); immediate = Direktpass ohne Ausholen.
+   */
+  passTo(p: Player, receiver: Player | null, dir: THREE.Vector3, opts: { speed?: number; errorDeg: number; immediate?: boolean }) {
     if (!this.canKick(p)) return;
-    const target = receiver
-      ? receiver.position.clone().addScaledVector(receiver.velocity, 0.6)
-      : p.position.clone().addScaledVector(dir, 12);
-    const to = target.sub(this.ball.position).setY(0);
-    const dist = to.length();
-    const speed = THREE.MathUtils.clamp(3.2 + dist * 0.8, 6, 17);
-    const kickDir = to.normalize().applyAxisAngle(UP, deg(errorDeg * (Math.random() * 2 - 1)));
-    this.kickBall(p, 'pass', kickDir, 0.7, () => kickDir.clone().multiplyScalar(speed).setY(0.4));
+    const from = this.ball.position;
+    let target: THREE.Vector3;
+    let speed: number;
+    if (receiver) {
+      const dist = horizDist(from, receiver.position);
+      speed = opts.speed ?? THREE.MathUtils.clamp(3.2 + dist * 0.8, 6, 17);
+      // In den Lauf des Mitspielers spielen
+      target = receiver.position.clone().addScaledVector(receiver.velocity, Math.min(1.5, dist / speed));
+    } else {
+      speed = opts.speed ?? 10;
+      target = p.position.clone().addScaledVector(dir, 12);
+    }
+    const kickDir = target.sub(from).setY(0).normalize().applyAxisAngle(UP, deg(opts.errorDeg * gauss()));
+    this.kickBall(p, 'pass', kickDir, 0.7, kickDir.clone().multiplyScalar(speed).setY(0.4), opts.immediate);
     if (receiver && this.controlled && receiver.team === this.controlled.team && receiver.role !== 'TW') {
       this.setControlled(receiver);
     }
   }
 
   /** Schuss aufs gegnerische Tor; aimZ = Zielpunkt quer zum Tor (m), power 0..1. */
-  shootAt(p: Player, power: number, aimZ: number, errorDeg: number) {
+  shootAt(p: Player, power: number, aimZ: number, errorDeg: number, immediate = false) {
     if (!this.canKick(p)) return;
     const goalX = (p.team === 0 ? 1 : -1) * (PITCH.length / 2 + 0.5);
     const z = THREE.MathUtils.clamp(aimZ, -2.3, 2.3);
     const to = new THREE.Vector3(goalX, 0, z).sub(this.ball.position).setY(0);
-    const spread = deg(errorDeg * (Math.random() * 2 - 1));
-    const dir = to.normalize().applyAxisAngle(UP, spread);
-    const speed = 9 + 10 * power;
+    const dir = to.normalize().applyAxisAngle(UP, deg(errorDeg * gauss()));
+    const speed = (9 + 10 * power) * (0.85 + 0.25 * p.skills.shooting);
     const elevation = deg(3 + 13 * power + (Math.random() - 0.5) * 6 * power);
-    this.kickBall(p, 'shot', dir, power, () =>
-      dir.clone().multiplyScalar(speed * Math.cos(elevation)).setY(speed * Math.sin(elevation)),
-    );
+    const v = dir.clone().multiplyScalar(speed * Math.cos(elevation)).setY(speed * Math.sin(elevation));
+    this.kickBall(p, 'shot', dir, power, v, immediate);
   }
 
-  private humanPass(p: Player, input: InputState) {
-    if (!this.canKick(p)) return;
+  // --- Mensch --------------------------------------------------------------
+
+  /** Pass-Taste: halten = härter; schon gehalten, wenn der Ball kommt = Direktpass */
+  private handlePassButton(p: Player, dt: number, input: InputState) {
+    if (input.pass) {
+      if (this.passCharge === null) this.passCharge = 0;
+      this.passCharge = Math.min(1, this.passCharge + dt / PASS_CHARGE_TIME);
+    } else if (this.passCharge !== null) {
+      const power = Math.max(0.15, this.passCharge);
+      this.passCharge = null;
+      this.humanKick(p, 'pass', power, input);
+    } else if (input.passTap) {
+      this.humanKick(p, 'pass', 0.2, input);
+    }
+  }
+
+  private handleShotButton(p: Player, dt: number, input: InputState) {
+    if (input.shoot) {
+      if (this.shotCharge === null) this.shotCharge = 0;
+      this.shotCharge = Math.min(1, this.shotCharge + dt / SHOT_CHARGE_TIME);
+    } else if (this.shotCharge !== null) {
+      const power = Math.max(0.15, this.shotCharge);
+      this.shotCharge = null;
+      this.humanKick(p, 'shot', power, input);
+    } else if (input.shootTap) {
+      this.humanKick(p, 'shot', 0.2, input);
+    }
+  }
+
+  private humanPass(p: Player, power: number, input: InputState, immediate = false) {
     const dir = inputDir(input, p);
     // Mitspieler in Passrichtung suchen (Winkel wichtiger als Entfernung)
     let receiver: Player | null = null;
@@ -333,40 +486,40 @@ export class Match {
         receiver = mate;
       }
     }
-    this.passTo(p, receiver, dir, 2);
+    const speed = 4.5 + 13 * power;
+    const errorDeg = (1 + 5 * (1 - p.skills.passing) + 3 * power) * (immediate ? 1.5 : 1);
+    this.passTo(p, receiver, dir, { speed, errorDeg, immediate });
   }
 
-  private handleShot(p: Player, dt: number, input: InputState) {
-    if (input.shoot) {
-      if (this.charge === null && this.canKick(p)) this.charge = 0;
-      if (this.charge !== null) this.charge = Math.min(1, this.charge + dt / CHARGE_TIME);
-    } else if (this.charge !== null) {
-      const power = Math.max(0.15, this.charge);
-      this.charge = null;
-      this.humanShot(p, power, input);
-    } else if (input.shootTap) {
-      // Nur kurz angetippt (zwischen zwei Bildern gedrückt und losgelassen)
-      this.humanShot(p, 0.2, input);
-    }
-    this.hud.setPower(this.charge);
-  }
-
-  private humanShot(p: Player, power: number, input: InputState) {
+  private humanShot(p: Player, power: number, input: InputState, immediate = false) {
     // Mit dem Stick nach oben/unten zielt man auf eine Ecke
     const aimZ = -input.moveY * 2.1 + (Math.random() - 0.5) * 0.6;
-    this.shootAt(p, power, aimZ, 1.5 + 4 * power);
+    const errorDeg = (1.5 + 4 * power) * (1.4 - p.skills.shooting) * (immediate ? 1.5 : 1);
+    this.shootAt(p, power, aimZ, errorDeg, immediate);
   }
 
-  private kickBall(p: Player, kind: 'pass' | 'shot', dir: THREE.Vector3, strength: number, velocity: () => THREE.Vector3) {
-    p.kick(kind, dir, strength, () => {
+  private kickBall(p: Player, kind: 'pass' | 'shot', dir: THREE.Vector3, strength: number, velocity: THREE.Vector3, immediate = false) {
+    const release = () => {
       if (this.phase.kind !== 'play') return;
-      if (horizDist(p.position, this.ball.position) > 1.3) return; // Ball schon weg
-      this.ball.setVelocity(velocity());
+      if (horizDist(p.position, this.ball.position) > 1.6) return; // Ball schon weg
+      this.ball.setVelocity(velocity);
       this.possessor = null;
       this.lastTouch = p.team;
       this.lastKicker = p;
       this.cooldown.set(p, KICK_COOLDOWN);
-    });
+    };
+    if (immediate) {
+      // Direktspiel: Ball sofort weiter, die Beinbewegung läuft nur noch zur Optik
+      release();
+      p.kick(kind, dir, strength * 0.6, () => {});
+    } else {
+      // Während des Ausholens bleibt der Ball vor dem Fuß (der Spieler bremst ab)
+      if (this.possessor === p) {
+        this.ball.setVelocity(p.velocity.clone().multiplyScalar(0.35).setY(0));
+        this.ball.matchRolling();
+      }
+      p.kick(kind, dir, strength, release);
+    }
   }
 
   // -------------------------------------------------------------------------
@@ -376,7 +529,9 @@ export class Match {
   private stop(seconds: number, restart: () => void) {
     this.phase = { kind: 'stopped', timer: seconds, restart };
     this.possessor = null;
-    this.charge = null;
+    this.shotCharge = null;
+    this.passCharge = null;
+    this.pending = null;
     this.restartGuard = null;
   }
 
@@ -450,6 +605,13 @@ const UP = new THREE.Vector3(0, 1, 0);
 
 function deg(d: number) {
   return THREE.MathUtils.degToRad(d);
+}
+
+/** Normalverteilte Zufallszahl (Mittel 0, Standardabweichung 1) */
+function gauss() {
+  const u = 1 - Math.random();
+  const v = Math.random();
+  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }
 
 function inputDir(input: InputState, p: Player) {

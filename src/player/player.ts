@@ -5,6 +5,7 @@ import { NO_INPUT, type InputState } from '../input/input';
 import type { Physics } from '../physics/world';
 import type { Position } from '../teams';
 import type { CharacterInstance } from './character';
+import type { Skills } from './skills';
 
 /** Ab welcher Geschwindigkeit nur noch die Laufanimation zu sehen ist (relativ zur Laufgeschwindigkeit). */
 const RUN_BLEND_END = 0.85;
@@ -41,6 +42,7 @@ export interface PlayerOptions {
   /** Blickrichtung beim Start (Radiant, 0 = +z) */
   yaw?: number;
   physics: Physics;
+  skills: Skills;
 }
 
 /**
@@ -54,6 +56,7 @@ export class Player {
   readonly team: 0 | 1;
   readonly role: Position;
   readonly number: number;
+  readonly skills: Skills;
 
   private readonly body = new THREE.Group();
   private readonly model: THREE.Object3D;
@@ -69,12 +72,15 @@ export class Player {
   private kickState: KickState | null = null;
   /** Hechtsprung des Torwarts */
   private diveState: { t: number; dir: THREE.Vector3 } | null = null;
+  /** Kurzer Ballkontakt beim Dribbeln (nur Optik) */
+  private touchT: number | null = null;
 
   constructor(character: CharacterInstance, private opts: PlayerOptions) {
     this.info = character.info;
     this.team = opts.team;
     this.role = opts.role;
     this.number = opts.number;
+    this.skills = opts.skills;
     this.model = character.root;
     this.body.add(character.root);
     this.root.add(this.body);
@@ -137,6 +143,11 @@ export class Player {
     return this.diveState !== null;
   }
 
+  /** Kleiner Ballkontakt beim Dribbeln (nur die Beinbewegung) */
+  touch() {
+    if (!this.kickState) this.touchT = 0;
+  }
+
   /** Torwart: Hechtsprung zur Seite (dir = Richtung in der Ebene). */
   dive(dir: THREE.Vector3) {
     if (this.diveState) return;
@@ -188,7 +199,8 @@ export class Player {
 
     // --- Bewegung -----------------------------------------------------------
     // Bildschirm „oben“ = vom Betrachter weg = -z
-    const maxSpeed = (input.sprint ? PLAYER.sprintSpeed : PLAYER.jogSpeed) * (kick ? 0.35 : 1);
+    const pace = 0.88 + 0.2 * this.skills.pace;
+    const maxSpeed = (input.sprint ? PLAYER.sprintSpeed : PLAYER.jogSpeed) * pace * (kick ? 0.35 : 1);
     const desired = new THREE.Vector3(input.moveX, 0, -input.moveY).multiplyScalar(maxSpeed);
     const hasInput = desired.lengthSq() > 1e-4;
     const accel = hasInput ? 5.5 : 7;
@@ -228,6 +240,7 @@ export class Player {
 
     this.animate(dt, speed);
     if (kick) this.applyKick(dt, kick);
+    else if (this.touchT !== null) this.applyTouch(dt);
 
     this.collider.setNextKinematicTranslation({
       x: this.position.x,
@@ -356,6 +369,14 @@ export class Player {
       k.contact();
     }
     if (u >= 1) this.kickState = null;
+  }
+
+  private applyTouch(dt: number) {
+    this.touchT = (this.touchT ?? 0) + dt;
+    const u = Math.min(1, this.touchT / 0.22);
+    this.rotateInModelSpace(this.bones.upLeg, X_AXIS, curve(u, [0, 0], [0.45, -22], [1, 0]));
+    this.rotateInModelSpace(this.bones.leg, X_AXIS, curve(u, [0, 10], [0.45, 12], [1, 0]));
+    if (u >= 1) this.touchT = null;
   }
 
   /** Dreht einen Knochen zusätzlich um eine Achse im Modell-Koordinatensystem (vorne = +z). */

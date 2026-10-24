@@ -11,6 +11,11 @@ const BALL_MASS = 0.32;
 const ROLL_DRAG = 0.5;
 const ROLL_FRICTION = 0.45;
 
+/** Bremsverzögerung eines rollenden Balls bei Geschwindigkeit v (m/s²) */
+export function rollingDecel(v: number) {
+  return ROLL_DRAG * v + ROLL_FRICTION;
+}
+
 /**
  * Der Ball: Rapier-Körper für Physik und Kollisionen, Three.js-Mesh für die Darstellung.
  */

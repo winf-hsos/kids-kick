@@ -6,8 +6,10 @@ export interface InputState {
   moveX: number;
   moveY: number;
   sprint: boolean;
-  /** Pass: genau ein Frame lang true beim Drücken */
+  /** Pass: true, solange gehalten (Härte aufladen, Direktpass vorbereiten) */
   pass: boolean;
+  /** Pass-Taste wurde seit dem letzten Bild gedrückt (auch bei ganz kurzem Antippen) */
+  passTap: boolean;
   /** Schuss: true, solange gehalten (Kraft aufladen) */
   shoot: boolean;
   /** Schuss-Taste wurde seit dem letzten Bild gedrückt (auch bei ganz kurzem Antippen) */
@@ -25,6 +27,7 @@ export const NO_INPUT: InputState = {
   moveY: 0,
   sprint: false,
   pass: false,
+  passTap: false,
   shoot: false,
   shootTap: false,
   switchPlayer: false,
@@ -37,13 +40,13 @@ const DEADZONE = 0.18;
 // Gamepad-Standardbelegung (PlayStation / Xbox)
 const PAD = { pass: 0, shoot: 1, camera: 3, switchPlayer: 4, sprintR1: 5, sprintR2: 7, start: 9 } as const;
 
-type EdgeAction = 'pass' | 'shootTap' | 'switchPlayer' | 'switchCamera' | 'pause';
+type EdgeAction = 'passTap' | 'shootTap' | 'switchPlayer' | 'switchCamera' | 'pause';
 
 const KEY_EDGES: Record<string, EdgeAction> = {
-  KeyE: 'pass',
+  KeyE: 'passTap',
   Space: 'shootTap',
   KeyK: 'shootTap',
-  KeyJ: 'pass',
+  KeyJ: 'passTap',
   KeyQ: 'switchPlayer',
   KeyL: 'switchPlayer',
   KeyC: 'switchCamera',
@@ -72,6 +75,7 @@ export class Input {
     let y = (k('KeyW', 'ArrowUp') ? 1 : 0) - (k('KeyS', 'ArrowDown') ? 1 : 0);
     let sprint = k('ShiftLeft', 'ShiftRight');
     let shoot = k('Space', 'KeyK');
+    let pass = k('KeyE', 'KeyJ');
     const edges = new Set(this.pressed);
     this.pressed.clear();
 
@@ -88,12 +92,13 @@ export class Input {
       }
       if (isDown(pad, PAD.sprintR2) || isDown(pad, PAD.sprintR1)) sprint = true;
       if (isDown(pad, PAD.shoot)) shoot = true;
+      if (isDown(pad, PAD.pass)) pass = true;
       const edge = (button: number, action: EdgeAction) => {
         const down = isDown(pad, button);
         if (down && !this.padPrev.get(button)) edges.add(action);
         this.padPrev.set(button, down);
       };
-      edge(PAD.pass, 'pass');
+      edge(PAD.pass, 'passTap');
       edge(PAD.shoot, 'shootTap');
       edge(PAD.switchPlayer, 'switchPlayer');
       edge(PAD.camera, 'switchCamera');
@@ -111,7 +116,8 @@ export class Input {
       moveY: y,
       sprint,
       shoot,
-      pass: edges.has('pass'),
+      pass,
+      passTap: edges.has('passTap'),
       shootTap: edges.has('shootTap'),
       switchPlayer: edges.has('switchPlayer'),
       switchCamera: edges.has('switchCamera'),

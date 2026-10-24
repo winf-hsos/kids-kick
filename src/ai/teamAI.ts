@@ -243,7 +243,7 @@ export class TeamAI {
         // Freien Mitspieler suchen; nach 2,5 s notfalls zum nächsten Mitspieler
         const best = this.bestPass(p, true) ?? (b.holding > 2.5 ? this.nearestMate(p) : null);
         if (best) {
-          m.passTo(p, best.mate, best.mate.position.clone().sub(p.position), m.profile.passError);
+          m.passTo(p, best.mate, best.mate.position.clone().sub(p.position), { errorDeg: this.passError(p) });
           b.holding = 0;
         }
       }
@@ -252,7 +252,8 @@ export class TeamAI {
     b.holding = 0;
 
     if (b.think > 0) {
-      if (b.dribble) b.target.copy(p.position).addScaledVector(b.dribble, 3);
+      // Dem vorgelegten Ball folgen und ihn in Dribbelrichtung weiterschieben
+      if (b.dribble) b.target.copy(m.ball.position).setY(0).addScaledVector(b.dribble, 0.8);
       return;
     }
     b.think = m.profile.reaction * (0.8 + Math.random() * 0.4);
@@ -298,16 +299,20 @@ export class TeamAI {
       // in die Ecke, die der Torwart nicht abdeckt
       const side = keeper && keeper.position.z > 0 ? -1 : 1;
       const power = THREE.MathUtils.clamp(0.35 + dGoal / 16, 0.35, 1);
-      m.shootAt(p, power, side * (1.4 + Math.random() * 0.7), m.profile.shotError);
+      m.shootAt(p, power, side * (1.4 + Math.random() * 0.7), m.profile.shotError * (1.4 - p.skills.shooting));
       b.dribble = null;
     } else if (pass && passScore >= dribbleScore) {
-      m.passTo(p, pass.mate, pass.mate.position.clone().sub(p.position), m.profile.passError);
+      m.passTo(p, pass.mate, pass.mate.position.clone().sub(p.position), { errorDeg: this.passError(p) });
       b.dribble = null;
     } else {
       b.dribble = dribbleDir;
-      b.target.copy(p.position).addScaledVector(dribbleDir, 3);
+      b.target.copy(m.ball.position).setY(0).addScaledVector(dribbleDir, 0.8);
       b.sprint = dribbleScore > 0.75 && pressure > 2;
     }
+  }
+
+  private passError(p: Player) {
+    return this.match.profile.passError * (1.5 - p.skills.passing);
   }
 
   private nearestMate(p: Player) {
@@ -414,6 +419,7 @@ const IDLE: InputState = {
   moveY: 0,
   sprint: false,
   pass: false,
+  passTap: false,
   shoot: false,
   shootTap: false,
   switchPlayer: false,
